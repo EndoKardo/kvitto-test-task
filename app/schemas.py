@@ -9,6 +9,18 @@ from pydantic import BaseModel, ConfigDict, EmailStr
 from app.constants import PaymentMethod, PaymentStatus # импортируем наши константы метода_оплаты и статуса_оплаты
 
 
+# для GET /tariffs - получения списка тарифов [айди, имени, цены]
+class TariffResponse(BaseModel):
+    id: int # айди_тарифа
+    title: str # название_тарифа
+    price: int # цена_тарифа
+
+    model_config = ConfigDict(from_attributes=True) # эта строчка кода означает,
+    # что мы разрешаем создавать PaymentResponse
+    # не только из обычного dict, но и из объекта SQLAlchemy
+    # Т.е. Pydantic возьмёт значения прямо из атрибутов SQLAlchemy-объекта.
+
+
 # для POST /payments - создание оплаты, т.е. получение данных, которые клиент отправляет нам при создании платежа
 class PaymentCreate(BaseModel):
     tariff_id: int # айди_тарифа который покупает клиент
@@ -31,9 +43,7 @@ class PaymentResponse(BaseModel):
     email: EmailStr # почта_клиента
     created_at: datetime # когда_создан
 
-    model_config = ConfigDict(from_attributes=True) # эта строка означает, что мы разрешаем создавать PaymentResponse
-    # не только из обычного dict, но и из объекта SQLAlchemy
-    # Т.е. Pydantic возьмёт значения прямо из атрибутов SQLAlchemy-объекта.
+    model_config = ConfigDict(from_attributes=True)
 
 
 # для POST /webhooks/bank - данные которые банк отправляем клиентам, чтоб оповестить об изменении статуса платежа
