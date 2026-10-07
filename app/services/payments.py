@@ -19,5 +19,4 @@ def calc_amount(price: int, discount: int) -> int:
 
 def build_schedule(amount: int, months: int) -> list[int]:
     base, extra = divmod(amount, months)
-    # лишние копейки — в первые платежи
     return [base + 1] * extra + [base] * (months - extra)
