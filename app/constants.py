@@ -1,5 +1,6 @@
 from enum import StrEnum
 
+
 PROMO_CODE = "KVITTO10"
 PROMO_DISCOUNT_PERCENT = 10
 
@@ -24,7 +25,9 @@ ALLOWED_TRANSITIONS: dict[PaymentStatus, frozenset[PaymentStatus]] = {
     PaymentStatus.SUCCEEDED: frozenset({PaymentStatus.REFUNDED}),
 }
 
+
 INSTALLMENT_MONTHS: frozenset[int] = frozenset({3, 6, 12})
+
 
 # (title, price_kopecks)
 TARIFFS: tuple[tuple[str, int], ...] = (
