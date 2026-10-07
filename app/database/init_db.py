@@ -34,7 +34,8 @@ def init_db() -> None:
                         title=title,
                         price=price,
                     )
-                )
+                ) # добавляет новое поле в таблице. В PostgreSQL это бы имело вид:
+                # INSERT INTO tariffs (title, price) VALUES ('basic', 990000);
 
         db.commit()
 
