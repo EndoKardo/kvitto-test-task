@@ -5,3 +5,4 @@ docs_task/
 *.pyc
 .env
 .idea/
+kvitto.db

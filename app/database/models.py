@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 # Mapped - какой тип хранится указываем явно
 # mapped_column - это настройки колонок, т.е. их параметры
 
-from app.database import Base # загружаем ранее созданный нами ORM-модель
+from app.database.database import Base # загружаем ранее созданный нами ORM-модель
 
 # class Tariff(Base) и class Payment(Base) - означают, что эти классы являются моделями таблиц БД
 class Tariff(Base): # создаём ORM-модель таблицу тарифов.
