@@ -5,6 +5,7 @@
 - ChatGPT
 - Copilot
 - DeepSeek
+- AliceAI
 
 ### Ключевые промпты
 <!--
