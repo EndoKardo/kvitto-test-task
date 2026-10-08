@@ -123,7 +123,7 @@ curl -s -X POST http://127.0.0.1:8000/payments \
     "method": "installment",
     "email": "student@example.com",
     "installment_months": 3,
-    "promo_code": "KVITT010"
+    "promo_code": "KVITTO10"
   }'
 ```
 
