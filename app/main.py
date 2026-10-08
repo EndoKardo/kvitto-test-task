@@ -8,13 +8,14 @@ from app.routers.webhooks import router as webhooks_router
 
 app = FastAPI()
 
+#подключаем endpoints реализованныые в routers
 app.include_router(tariffs_router) # 200 - запрос успешно обработан, данные успешно отправлены
 
 app.include_router(payments_router)
 
 app.include_router(webhooks_router)
 
-
+# конструкция которая вызывается при запуске сервера каждый раз
 @app.on_event("startup")
 def startup():
     init_db()
