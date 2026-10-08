@@ -1,6 +1,8 @@
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from fastapi.responses import JSONResponse # Нужен чтобы сделать вручную http ответ при "исключениях"
+from pydantic import EmailStr
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -142,6 +144,55 @@ def create_payment(
 
     # 10. Возвращаем созданный платёж.
     return new_payment
+
+
+
+
+
+
+@router.get(
+    "",
+    response_model=list[PaymentResponse],
+)
+def list_payments(
+    email: EmailStr | None = None, # ожидаем получить почту если это не почта то код 422
+    status: PaymentStatus | None = None, # ожидаем получить статус который в константах если нет такого статуса то код 422
+    db: Session = Depends(get_db),
+):
+    # Начинаем с «выбрать все платежи» и постепенно сужаем выборку.
+    stmt = select(Payment) # выбираем всё из таблицы
+
+    # Если передан email — добавляем условие WHERE email = ... получается: Select * from payments where email =....
+    if email is not None:
+        stmt = stmt.where(Payment.email == email)
+
+    # Если передан статус — добавляем условие WHERE status = ... и получается если почта тоже передана такая конструкция:
+    # Select * from payments where email =.... and status = ....
+    if status is not None:
+        stmt = stmt.where(Payment.status == status)
+
+    # Стабильный порядок — по id по возрастанию от минимального к максимальному
+    stmt = stmt.order_by(Payment.id) # сортируем по айди т.е. ORDER BY id ASC
+
+    # Выполняем запрос и возвращаем список платежей.
+    # FastAPI сериализует их в list[PaymentResponse] через response_model.
+    return db.scalars(stmt).all() # выполняем запрос который у нас получился и возвращаем множество ответов который вывелись
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 @router.get(

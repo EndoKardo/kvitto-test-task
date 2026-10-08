@@ -62,6 +62,10 @@ python -m pytest -v
 
 ## Примеры запросов
 
+Все примеры ниже — через `curl`. В **PowerShell** `curl` — это псевдоним
+для `Invoke-WebRequest`, поэтому нужно писать `curl.exe --%`, иначе команды
+с JSON-телом не сработают. В Git Bash / Linux / macOS достаточно `curl`.
+
 ### 1. Список тарифов
 
 ```bash
@@ -144,7 +148,42 @@ curl -s -X POST http://127.0.0.1:8000/payments \
 curl -s http://127.0.0.1:8000/payments/1
 ```
 
-### 6. Вебхук от банка
+### 6. Список платежей с фильтрами
+
+Без фильтров — вернёт **все** платежи, отсортированные по `id`:
+
+```bash
+curl -s http://127.0.0.1:8000/payments
+```
+
+Только платежи конкретного пользователя:
+
+```bash
+curl -s "http://127.0.0.1:8000/payments?email=student@example.com"
+```
+
+Только платежи в заданном статусе:
+
+```bash
+curl -s "http://127.0.0.1:8000/payments?status=succeeded"
+```
+
+Оба фильтра одновременно (условия объединяются через AND):
+
+```bash
+curl -s "http://127.0.0.1:8000/payments?email=student@example.com&status=succeeded"
+```
+
+Невалидный `email` или `status` → 422 от Pydantic:
+
+```bash
+curl -s "http://127.0.0.1:8000/payments?email=not-an-email"
+curl -s "http://127.0.0.1:8000/payments?status=unknown"
+```
+
+Если ничего не найдено — вернётся `[]` с кодом 200.
+
+### 7. Вебхук от банка
 
 ```bash
 # pending → succeeded
@@ -158,6 +197,25 @@ curl -s -X POST http://127.0.0.1:8000/webhooks/bank \
   -H "Content-Type: application/json" \
   -d '{"payment_id": 1, "status": "refunded"}'
 # → 409 {"detail": {"error": "invalid_transition"}}
+```
+
+### 8. Примеры для PowerShell
+
+В PowerShell те же команды пишутся через `curl.exe --%` (всё после `--%`
+передаётся программе как есть):
+
+```powershell
+curl.exe --% -s -X POST http://127.0.0.1:8000/payments -H "Content-Type: application/json" -H "Idempotency-Key: demo-key-1" -d "{\"tariff_id\": 2, \"method\": \"card\", \"email\": \"student@example.com\"}"
+```
+
+```powershell
+curl.exe --% -s "http://127.0.0.1:8000/payments?email=student@example.com&status=succeeded"
+```
+
+Альтернатива — нативный для PowerShell `Invoke-RestMethod`:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/payments -Headers @{ "Idempotency-Key" = "demo-key-1" } -ContentType "application/json" -Body '{"tariff_id": 2, "method": "card", "email": "student@example.com"}'
 ```
 
 ## Бизнес-правила
@@ -174,6 +232,9 @@ curl -s -X POST http://127.0.0.1:8000/webhooks/bank \
   `succeeded → refunded`. Остальные — 409 `invalid_transition`.
 - **Идемпотентность**: если передан `Idempotency-Key` и платёж с таким
   ключом уже есть — возвращается он же с кодом 200, новый не создаётся.
+- **Список платежей** — `GET /payments` возвращает все платежи; можно
+  отфильтровать по `email` (точное совпадение) и `status` (одно из
+  `pending/succeeded/failed/refunded`). Невалидные значения → 422.
 
 ## Структура проекта
 
@@ -187,7 +248,7 @@ curl -s -X POST http://127.0.0.1:8000/webhooks/bank \
 │   │   └── models.py         # ORM-модели Tariff и Payment
 │   ├── routers/
 │   │   ├── __init__.py
-│   │   ├── payments.py       # POST /payments, GET /payments/{id}
+│   │   ├── payments.py       # POST /payments, GET /payments, GET /payments/{id}
 │   │   ├── tariffs.py        # GET /tariffs
 │   │   └── webhooks.py       # POST /webhooks/bank
 │   ├── services/
@@ -209,9 +270,10 @@ curl -s -X POST http://127.0.0.1:8000/webhooks/bank \
 
 ## Эндпоинты
 
-| Метод | Путь               | Описание                                              |
-|-------|--------------------|-------------------------------------------------------|
-| GET   | `/tariffs`         | Список тарифов `{id, title, price}`                   |
-| POST  | `/payments`        | Создать платёж (201) или вернуть существующий (200)   |
-| GET   | `/payments/{id}`   | Получить платёж (200) или 404                         |
-| POST  | `/webhooks/bank`   | Смена статуса банком (200 / 404 / 409)                |
+| Метод | Путь               | Описание                                                          |
+|-------|--------------------|-------------------------------------------------------------------|
+| GET   | `/tariffs`         | Список тарифов `{id, title, price}`                               |
+| POST  | `/payments`        | Создать платёж (201) или вернуть существующий (200)               |
+| GET   | `/payments`        | Список платежей; фильтры `?email=` и `?status=` (200, 422)        |
+| GET   | `/payments/{id}`   | Получить платёж (200) или 404                                     |
+| POST  | `/webhooks/bank`   | Смена статуса банком (200 / 404 / 409)                            |

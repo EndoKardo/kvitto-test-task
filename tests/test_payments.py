@@ -567,3 +567,157 @@ def test_amounts_are_int(client):
     assert isinstance(data["discount"], int)
     assert isinstance(data["tariff_id"], int)
     assert all(isinstance(x, int) for x in data["schedule"])
+
+
+# НИЖЕ ПОШЛА РЕАЛИЗАЦИЯ ТЕСТОВ ДЛЯ GET /payments с фильтрами по email и status
+
+def test_list_payments_empty(client):
+    """Без платежей GET /payments возвращает пустой список."""
+    response = client.get("/payments")
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_list_payments_returns_all(client):
+    """GET /payments без фильтров возвращает все созданные платежи."""
+    for i in range(3):
+        client.post(
+            "/payments",
+            headers={"Idempotency-Key": f"list-all-{i}"},
+            json={
+                "tariff_id": 2,
+                "method": "card",
+                "email": f"user{i}@example.com",
+            },
+        )
+
+    response = client.get("/payments")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 3
+    # отсортированы по id по возрастанию
+    ids = [p["id"] for p in data]
+    assert ids == sorted(ids) # проверка что действительно отсортированы
+
+
+def test_list_payments_filter_by_email(client):
+    """?email=... возвращает только платежи этого пользователя."""
+    client.post(
+        "/payments",
+        headers={"Idempotency-Key": "filter-email-1"},
+        json={"tariff_id": 2, "method": "card", "email": "student@example.com"},
+    )
+    client.post(
+        "/payments",
+        headers={"Idempotency-Key": "filter-email-2"},
+        json={"tariff_id": 1, "method": "card", "email": "other@example.com"},
+    )
+    client.post(
+        "/payments",
+        headers={"Idempotency-Key": "filter-email-3"},
+        json={"tariff_id": 2, "method": "card", "email": "student@example.com"},
+    )
+
+    response = client.get("/payments", params={"email": "student@example.com"})
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 2
+    assert all(p["email"] == "student@example.com" for p in data)
+
+
+def test_list_payments_filter_by_status(client):
+    """?status=... возвращает только платежи в этом статусе."""
+    # 1. pending
+    client.post(
+        "/payments",
+        headers={"Idempotency-Key": "filter-status-1"},
+        json={"tariff_id": 2, "method": "card", "email": "a@example.com"},
+    )
+
+    # 2. succeeded
+    r = client.post(
+        "/payments",
+        headers={"Idempotency-Key": "filter-status-2"},
+        json={"tariff_id": 2, "method": "card", "email": "b@example.com"},
+    )
+    pid = r.json()["id"]
+    client.post("/webhooks/bank", json={"payment_id": pid, "status": "succeeded"})
+
+    # 3. failed
+    r = client.post(
+        "/payments",
+        headers={"Idempotency-Key": "filter-status-3"},
+        json={"tariff_id": 2, "method": "card", "email": "c@example.com"},
+    )
+    pid = r.json()["id"]
+    client.post("/webhooks/bank", json={"payment_id": pid, "status": "failed"})
+
+    response = client.get("/payments", params={"status": "succeeded"})
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["status"] == "succeeded"
+    assert data[0]["email"] == "b@example.com"
+
+
+def test_list_payments_filter_by_email_and_status(client):
+    """?email=...&status=... — оба условия через AND."""
+    # a@example.com / pending
+    client.post(
+        "/payments",
+        headers={"Idempotency-Key": "filter-both-1"},
+        json={"tariff_id": 2, "method": "card", "email": "a@example.com"},
+    )
+
+    # a@example.com / succeeded
+    r = client.post(
+        "/payments",
+        headers={"Idempotency-Key": "filter-both-2"},
+        json={"tariff_id": 2, "method": "card", "email": "a@example.com"},
+    )
+    pid = r.json()["id"]
+    client.post("/webhooks/bank", json={"payment_id": pid, "status": "succeeded"})
+
+    # b@example.com / succeeded
+    r = client.post(
+        "/payments",
+        headers={"Idempotency-Key": "filter-both-3"},
+        json={"tariff_id": 2, "method": "card", "email": "b@example.com"},
+    )
+    pid = r.json()["id"]
+    client.post("/webhooks/bank", json={"payment_id": pid, "status": "succeeded"})
+
+    response = client.get(
+        "/payments",
+        params={"email": "a@example.com", "status": "succeeded"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["email"] == "a@example.com"
+    assert data[0]["status"] == "succeeded"
+
+
+def test_list_payments_filter_no_match_returns_empty(client):
+    """Фильтр, под который ничего не подходит → [] с 200."""
+    client.post(
+        "/payments",
+        headers={"Idempotency-Key": "filter-nomatch-1"},
+        json={"tariff_id": 2, "method": "card", "email": "a@example.com"},
+    )
+
+    response = client.get("/payments", params={"email": "nobody@example.com"})
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_list_payments_invalid_email_returns_422(client):
+    """?email=не-email → 422 от Pydantic."""
+    response = client.get("/payments", params={"email": "not-an-email"})
+    assert response.status_code == 422
+
+
+def test_list_payments_invalid_status_returns_422(client):
+    """?status=unknown → 422 от Pydantic."""
+    response = client.get("/payments", params={"status": "unknown"})
+    assert response.status_code == 422
